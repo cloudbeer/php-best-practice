@@ -129,7 +129,7 @@ php 应用部署到容器环境，最自然的一种方式是：直接将 php �
 
 K8S 在同一个 pod 中，可以运行多个容器。我们将 php-fpm 的业务代码部署在一个容器中，与之相伴生的有一个 nginx 容器，nginx 作为fastcgi的调用方，并可以代理一些静态资源，这个模式类似 mesh 的sidecar 模式。架构图如下：
 
-![nginx 作为 sidecar 部署](https://ask.qcloudimg.com/developer-images/article/5991113/6y9lv7z5h7.png)
+![nginx 作为 sidecar 部署](./readme-img/sidecar.jpg)
 
 ### nginx 配置
 由于 nginx 和 php-fpm 在一个 pod 中，所以只需发起 localhost 调用即可。 nginx 的配置如下，我们将这个配置写到 cm 中，后面通过 volume 绑定到容器中。这个配置有几点需要注意的：
@@ -271,7 +271,7 @@ spec:
 
 部署架构图如下：
 
-![nginx 独立部署架构](https://ask.qcloudimg.com/developer-images/article/5991113/m0mlrdsoyk.png)
+![nginx 独立部署架构](./readme-img/separate.jpg)
 
 
 
@@ -400,7 +400,7 @@ spec:
 
 上面的部署架构图中，ingress 和 nginx 分别进行了部署，但  nginx-ingress  其实已经合并了这两个部分，并且 TKE  提供了现成的 nginx-ingress。现在，我们试试使用 nginx-ingress 部署。
 
-![使用 nginx-ingress 部署](https://ask.qcloudimg.com/developer-images/article/5991113/z8hktvh4bx.png)
+![使用 nginx-ingress 部署](./readme-img/nginx-ingress.jpg)
 
 
 在 TKE 集群内安装 nginx-ingress，参考这篇：
@@ -454,7 +454,7 @@ TKE 的 nginx-ingress 直接提供了一个外网地址，访问一下试试，�
 
 架构图如下：
 
-![php 应用的 mesh 部署架构](https://ask.qcloudimg.com/developer-images/article/5991113/jo1xpqj773.png)
+![php 应用的 mesh 部署架构](./readme-img/mesh.jpg)
 
 
 此处的部署与第一部分的内容 - nginx 作为 sidecar 运行类似，在腾讯云中需要开通 TCM，并注入 envoy 的 sidecar。
