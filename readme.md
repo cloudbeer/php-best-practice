@@ -1,11 +1,12 @@
-​目前市场上 php 仍有一席之地。本文章将探讨如何将 php 应用容器化并迁移部署到 TKE。 
+# php应用容器化部署实践​
+目前市场上 php 仍有一席之地。本文章将探讨如何将 php 应用容器化并迁移部署到 TKE。 
 
-# php 应用镜像准备
+## php 应用镜像准备
 镜像的层次：基础依赖镜像->运行框架->应用/代码镜像
 
 基于容器的单进程运行理念，下面的部署过程并未使用单体的 nginx+php-fpm 一体的容器运行方式，而是将 php-fpm 和 nginx 拆散。
 
-## 基础镜像
+### 基础镜像
 安装基础系统依赖包和公司 php 应用中各个开发小组都会用到的扩展包。
 下面的示例基于官方 fpm，安装了通用系统级的依赖和 php 包管理器。
 如果可以，建议使用更基础的镜像从 php 源码进行编译。
@@ -36,7 +37,7 @@ docker build -t cloudbeer/php-runtime:1.0 -f runtime.Dockerfile .
 docker push cloudbeer/php-runtime:1.0
 ```
 
-## 应用层框架镜像
+### 应用层框架镜像
 如果开发框架比较稳定，建议直接把框架打包成基础镜像以避免后续部署过程中频繁安装依赖包，加速发布打包发布过程，如业务开发A组使用了 lumen 框架，我们可以专门为 lumen 打一个镜像。
 
 如下镜像，安装了 lumen web 框架。
@@ -60,7 +61,7 @@ RUN composer i
 
 上述镜像打包为：cloudbeer/my-lumen:1.0
 
-## 应用层镜像
+### 应用层镜像
 由于我们在应用层框架里已经把 lumen 运行时都安装好了，所以这个镜像里，只需拷贝纯源码即可。记得创建 .gitignore 或者 .dockerignore 文件，排除 vender，test 等目录。
 ```
 # .dockerignore
@@ -99,7 +100,7 @@ COPY ./ /app/
 代码层在还可以有更多的打包方式，如上传到对象存储里，或者使用 NFS 存储，后期绑定到容器运行时运行。
 
 
-## 本地测试
+### 本地测试
 
 启动镜像 cloudbeer/php-caculate:1.0
 
@@ -119,19 +120,19 @@ curl http://localhost:8000/cpu
 上述代码中的镜像，我均已打包上传到 docker hub 官网，可以忽略 build 和 push 过程，直接进行测试。
 
 
-# 部署到 K8S/TKE
+## 部署到 K8S/TKE
 
 php 应用部署到容器环境，最自然的一种方式是：直接将 php 的运行环境和web server 以及业务源代码打包放在一个容器中运行。这个方式是最简单的方式，php 官方也提供了 php:nginx 这种镜像底包。
 
 但 php 运行时和 web server 是在两个进程中运行，这个不符合容器的最佳实践。一般建议将这两个进程分别运行在不同的容器中。
 
-## nginx 作为 sidecar 运行
+### nginx 作为 sidecar 运行
 
 K8S 在同一个 pod 中，可以运行多个容器。我们将 php-fpm 的业务代码部署在一个容器中，与之相伴生的有一个 nginx 容器，nginx 作为fastcgi的调用方，并可以代理一些静态资源，这个模式类似 mesh 的sidecar 模式。架构图如下：
 
 ![nginx 作为 sidecar 部署](./readme-img/sidecar.jpg)
 
-### nginx 配置
+#### nginx 配置
 由于 nginx 和 php-fpm 在一个 pod 中，所以只需发起 localhost 调用即可。 nginx 的配置如下，我们将这个配置写到 cm 中，后面通过 volume 绑定到容器中。这个配置有几点需要注意的：
 - 应用使用了 lumen 的 route 体系，所以需要将路由通过 try_files 全部指向 ./public/index.php 文件。
 - fastcgi_param  SCRIPT_FILENAME  /app/public/index.php 这里也将所有脚本指向这个文件。
@@ -164,7 +165,7 @@ data:
       }
 ```
 
-### 应用部署脚本
+#### 应用部署脚本
 
 在下面的部署脚本中，有几点值得关注一下：
 - 使用了 emptyDir:{} 作为容器的源代码存储介质，这样可以将应用读取到临时目录中，加速运行时 php 源码的加载。如果脚本文件不大，可以指定 emptyDir 使用内存运行，这个可以更加加速脚本加载。
@@ -265,7 +266,7 @@ spec:
 ```
 访问对应的 外部 ip:8081，完美运行。
 
-## nginx 独立部署
+### nginx 独立部署
 
 通常情况下，运维部门希望将 web server 收敛并统一管理，开发也不太关心 nginx 的具体配置，将两者进行拆分众望所归，并且在微服务的横向扩展中，这种方式也更加“优雅”。
 
@@ -275,7 +276,7 @@ spec:
 
 
 
-### 部署 fpm 业务应用
+#### 部署 fpm 业务应用
 - 此处部署了 php-caculate 镜像，此镜像里包含了源代码，Web框架以及 php 运行时，是一个完整的 php-fpm 业务应用。
 - 通过 service 发布应用，以便 nginx 能发现 fpm 服务，并解偶了 webserver 和 业务服务。后期可以做纯php 业务的横向扩展和 nginx 的集中管理。
 
@@ -329,7 +330,7 @@ spec:
           protocol: TCP
 ```
 
-### nginx 部署
+#### nginx 部署
 
 此部分的 nginx 配置基本和上面一样，唯一的区别就是 fastcgi_pass 的调用目标变成了 php 业务的 service：caculate-standalone 了。
 
@@ -396,7 +397,7 @@ spec:
 现在，给 nginx 应用挂一个 LoadBalancer 测试一下，亦完美运行。
 
 
-## 使用 nginx-ingress 部署
+### 使用 nginx-ingress 部署
 
 上面的部署架构图中，ingress 和 nginx 分别进行了部署，但  nginx-ingress  其实已经合并了这两个部分，并且 TKE  提供了现成的 nginx-ingress。现在，我们试试使用 nginx-ingress 部署。
 
