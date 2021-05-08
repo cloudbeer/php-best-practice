@@ -471,14 +471,17 @@ php 业务应用，映射了2个路径
 - /mem: 在数组里塞了字符串为了撑爆内存
 
 ## deployments/ 
+
 部署代码
-app-caculate-fpm-separate.yaml： nginx 和 fpm 分在不同的 pod 中部署
-app-caculate-nginx-ingress.yaml： nginx-ingress 直接代理 fpm 服务
-app-caculate-nginx-sidecar.yaml： nginx 和 fpm 部署在同一个pod中的两个容器
+
+- app-caculate-fpm-separate.yaml： nginx 和 fpm 分在不同的 pod 中部署
+- app-caculate-nginx-ingress.yaml： nginx-ingress 直接代理 fpm 服务
+- app-caculate-nginx-sidecar.yaml： nginx 和 fpm 部署在同一个pod中的两个容器
 
 ## dockerfile/
-lumen.Dockerfile：包含 lumen 框架的运行环境
-runtime.Dockerfile：php 基础运行环境
+
+- lumen.Dockerfile：包含 lumen 框架的运行环境
+- runtime.Dockerfile：php 基础运行环境
 
 业务代码的 Dockerfile 位于 src/lumen-app/Dockerfile 和 src/lumen-app/purecode.Dockerfile
 
