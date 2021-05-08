@@ -1,0 +1,123 @@
+
+# 为 php-fpm 部署 service
+apiVersion: v1
+kind: Service
+metadata:
+  name: caculate-standalone
+  namespace: php-test
+  labels:
+    app: caculate-standalone
+spec:
+  ports:
+  - port: 9000
+    name: tcp
+  selector:
+    app: caculate-standalone
+
+---   
+# 部署具体应用
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caculate-standalone
+  namespace: php-test
+  labels: 
+    app: caculate-standalone
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: caculate-standalone
+  template:
+    metadata:
+      labels:
+        app: caculate-standalone
+    spec:
+      containers:
+      - image: cloudbeer/php-caculate:1.0
+        name: caculate
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        ports:
+        - containerPort: 9000
+          protocol: TCP
+---
+# nginx config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: caculate-standalone-config
+    namespace: php-test
+data:
+    config: |-
+      server {
+          listen       8081;
+          root   /app/public;
+          index index.php
+          charset utf-8;
+          # sendfile off;
+
+          location / {
+            try_files $uri $uri/ /index.php?$args;
+          }
+
+          location ~ \.php$  {
+            # fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+            fastcgi_pass   caculate-standalone:9000;
+            fastcgi_index  index.php;
+            fastcgi_param  SCRIPT_FILENAME  /app/public/index.php;
+            include        fastcgi_params;
+          }
+
+      }
+---
+# nginx service deploy
+apiVersion: v1
+kind: Service
+metadata:
+    name: caculate-standalone-service
+    namespace: php-test
+spec:
+    type: LoadBalancer
+    selector:
+        app: nginx
+    ports:
+        - protocol: TCP
+          port: 8081
+          targetPort: 8081
+
+---
+# nginx app deploy
+apiVersion:  apps/v1
+kind: Deployment
+metadata:
+    name: caculate-standalone-nginx-deployment
+    namespace: php-test
+spec:
+    selector:
+        matchLabels:
+          app: nginx
+    template:
+        metadata:
+          labels:
+              app: nginx
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:alpine
+            volumeMounts:
+            - name: nginx-php-config
+              mountPath: /etc/nginx/conf.d/caculate-standalone.conf
+              subPath: caculate-standalone.conf
+          volumes:
+              - name: nginx-php-config
+                configMap:
+                  name: caculate-standalone-config
+                  items:
+                  - key: config
+                    path: caculate-standalone.conf

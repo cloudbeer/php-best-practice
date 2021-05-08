@@ -1,0 +1,12 @@
+# .dockerignore
+/vendor
+/.idea
+/.git
+.gitignore
+/tests
+Dockerfile
+Homestead.json
+Homestead.yaml
+.env
+.ent.example
+.phpunit.result.cache

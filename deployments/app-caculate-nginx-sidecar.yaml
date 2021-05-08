@@ -1,0 +1,118 @@
+
+# nginx config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: caculate-sidecar-config
+    namespace: php-test
+data:
+    config: |-
+      server {
+          listen       8081;
+          root   /app/public;
+          index index.php
+          charset utf-8;
+          # sendfile off;
+
+          location / {
+            try_files $uri $uri/ /index.php?$args;
+          }
+
+          location ~ \.php$  {
+            # fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+            fastcgi_pass   127.0.0.1:9000;
+            fastcgi_index  index.php;
+            fastcgi_param  SCRIPT_FILENAME  /app/public/index.php;
+            include        fastcgi_params;
+          }
+
+      }
+---   
+# 部署具体应用
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caculate-nginx-sidecar
+  namespace: php-test
+  labels: 
+    app: caculate-nginx-sidecar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: caculate-nginx-sidecar
+  template:
+    metadata:
+      labels:
+        app: caculate-nginx-sidecar
+    spec:
+      volumes:
+      # web app 的工作目录，绑定到内存中
+      - name: webapp-data
+        emptyDir: {}
+      # nginx 的配置文件，存在 cm 中
+      - name: nginx-php-config
+        configMap:
+          name: caculate-sidecar-config
+          items:
+          - key: config
+            path: caculate-sidecar.conf
+      # 初始化，将 镜像中的源文件拷贝到容器内存。
+      initContainers:
+      - name: copy-code
+        image: cloudbeer/php-caculate-purecode:1.0
+        volumeMounts:
+        - name: webapp-data
+          mountPath: /webapp
+        command: [cp, -R, /app/, /webapp]
+      - name: copy-lumen
+        image: cloudbeer/my-lumen:1.0
+        volumeMounts:
+        - name: webapp-data
+          mountPath: /webapp
+        command: [cp, -R, /app/, /webapp]
+      containers:
+      # fpm app
+      - name: caculate
+        image: cloudbeer/php-runtime:1.0
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        ports:
+        - containerPort: 9000
+          protocol: TCP
+        volumeMounts:
+        - name: webapp-data
+          mountPath: /app
+          subPath: app
+      # nginx sidecar
+      - name: nginx-sidecar
+        image: nginx:alpine
+        volumeMounts:
+        - name: nginx-php-config
+          mountPath: /etc/nginx/conf.d/caculate-sidecar.conf
+          subPath: caculate-sidecar.conf
+        - name: webapp-data
+          mountPath: /app
+          subPath: app
+      # imagePullSecrets:
+      # - name: wellxiecred
+---
+# nginx service deploy
+apiVersion: v1
+kind: Service
+metadata:
+    name: caculate-sidecar-service
+    namespace: php-test
+spec:
+    type: LoadBalancer
+    selector:
+        app: caculate-nginx-sidecar
+    ports:
+        - protocol: TCP
+          port: 8081
+          targetPort: 8081
